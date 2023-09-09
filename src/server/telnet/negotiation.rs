@@ -7,6 +7,23 @@ pub enum SubnegotiationOption {
     Unknown,
 }
 
+impl From<SubnegotiationOption> for Vec<u8> {
+    fn from(option: SubnegotiationOption) -> Self {
+        match option {
+            SubnegotiationOption::TerminalType(description) => {
+                let mut output = vec![NegotationOption::TerminalType.into(), 0x00];
+                output.extend_from_slice(description.as_bytes());
+
+                output
+            }
+            SubnegotiationOption::TerminalTypeSend => {
+                vec![NegotationOption::TerminalType.into(), 0x01]
+            }
+            SubnegotiationOption::Unknown => unimplemented!(),
+        }
+    }
+}
+
 impl SubnegotiationOption {
     pub fn parse(option: NegotationOption, contents: &Vec<u8>) -> Option<Self> {
         match option {

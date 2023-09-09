@@ -10,7 +10,11 @@ use tokio::{
     net::TcpStream,
 };
 
-use self::frame::Frame;
+use self::{
+    command::{Command, NegotationOption},
+    frame::Frame,
+    negotiation::SubnegotiationOption,
+};
 
 pub struct Client {
     stream: TcpStream,
@@ -51,9 +55,68 @@ impl Client {
         }
     }
 
+    /**
+     * Send data to the client.
+     *
+     * This method will block (asynchronously) until all of the data has been sent.
+     */
     pub async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
         self.stream.write_all(data).await?;
         self.stream.flush().await?;
         Ok(())
+    }
+
+    /**
+     * Send a negotiation to the client.
+     *
+     * A negotiation is a command that is sent to the client that is part of
+     * the standard telnet protocol. It is used to negotiate the state of the
+     * connection.
+     *
+     * For example, the client may request that the server enable the echo
+     * option using the following command:
+     *
+     *   IAC DO ECHO
+     *
+     * The server would then respond with the following command:
+     *
+     *  IAC WILL ECHO
+     *
+     * The server would then enable the echo option.
+     */
+    pub async fn send_negotiation(
+        &mut self,
+        command: Command,
+        option: NegotationOption,
+    ) -> Result<(), Error> {
+        let bytes = [0xFF, command.into(), option.into()];
+        self.send(&bytes).await
+    }
+
+    /**
+     * Send a subnegotiation to the client.
+     *
+     * A subnegotiation is a command that is sent to the client that is not
+     * part of the standard telnet protocol. It is used to send additional
+     * information to the client.
+     *
+     * For example, the server may request the terminal type from the client
+     * using the following command:
+     *
+     *    IAC SB TERMINAL-TYPE SEND IAC SE
+     *
+     * The client would then respond with the following command:
+     *
+     *   IAC WILL TERMINAL-TYPE
+     *   IAC SB TERMINAL-TYPE IS <terminal-type> IAC SE
+     */
+    pub async fn send_subnegotiation(&mut self, option: SubnegotiationOption) -> Result<(), Error> {
+        let mut bytes = vec![0xFF, 0xFA];
+
+        bytes.extend_from_slice(Vec::<u8>::from(option).as_slice());
+        bytes.push(0xFF);
+        bytes.push(0xF0);
+
+        self.send(&bytes).await
     }
 }
